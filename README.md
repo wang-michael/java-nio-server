@@ -10,7 +10,7 @@ processorThread处理时使用readSelector监测请求的读事件，使用write
 源码中对于所有到来的连接，使用了共享的readMessageBuffer接收数据，使用共享的writeMessageBuffer写出数据。以readMessageBuffer为例，其中共包含了三种类型的存储空间：1024个4KB大小、128个128KB大小、16个1MB大小，如下图：  
 
 <div align=center><img src="/img/selectBufferSize.jpg" width="350" height="350" alt="readMessageBuffer三种存储类型" /></div>
-<div align=center>图1：readMessageBuffer三种存储类型</div>    
+<div align=center>图1：readMessageBuffer三种存储类型</div></br>    
 
 使用非阻塞IO的难点之一需要保存请求当前接收到的不完整信息直到所有信息到来。使用不同类型的存储空间的好处在于当要处理的不完整的请求数据4KB保存不了时可以扩容为128KB或者1MB。   
 
