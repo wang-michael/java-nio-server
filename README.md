@@ -12,13 +12,12 @@ processorThread处理时使用readSelector监测请求的读事件，使用write
 <div align=center><img src="/img/selectBufferSize.jpg" width="350" height="350" alt="readMessageBuffer三种存储类型" /></div>
 <div align=center>图1：readMessageBuffer三种存储类型</div>    
 
-
 使用非阻塞IO的难点之一需要保存请求当前接收到的不完整信息直到所有信息到来。使用不同类型的存储空间的好处在于当要处理的不完整的请求数据4KB保存不了时可以扩容为128KB或者1MB。   
 
 对于MessageBuffer中三种不同类型的存储空间，使用QueueIntFlip来记录其空间分配情况，具体记录方式如下图：     
 
 <div align=center><img src="/img/QueueIntFlip.jpg" width="400" height="400" alt="MessageBuffer空间分配情况记录" /></div>
-<div align=center>图2：MessageBuffer空间分配情况记录</center></div>      
+<div align=center>图2：MessageBuffer空间分配情况记录</div>        
 
   
 更多关于项目的介绍，参见：[Java NIO: Non-blocking Server](http://tutorials.jenkov.com/java-nio/non-blocking-server.html)   
