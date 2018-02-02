@@ -1,5 +1,7 @@
 package com.jenkov.nioserver;
 
+import com.jenkov.nioserver.http.HttpMessageReader;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -9,11 +11,13 @@ import java.util.*;
 
 /**
  * Created by jjenkov on 16-10-2015.
+ *
  */
 public class SocketProcessor implements Runnable {
 
     private Queue<Socket>  inboundSocketQueue   = null;
 
+    //readMessageBuffer与writeMessageBuffer大小均为1MB
     private MessageBuffer  readMessageBuffer    = null; //todo   Not used now - but perhaps will be later - to check for space in the buffer before reading from sockets
     private MessageBuffer  writeMessageBuffer   = null; //todo   Not used now - but perhaps will be later - to check for space in the buffer before reading from sockets (space for more to write?)
 
@@ -21,6 +25,7 @@ public class SocketProcessor implements Runnable {
 
     private Queue<Message> outboundMessageQueue = new LinkedList<>(); //todo use a better / faster queue.
 
+    //key值为socketId，value为对应的客户端的socket，这个map的作用是将message与对应的socket连接起来，因为message中也存储了socketId
     private Map<Long, Socket> socketMap         = new HashMap<>();
 
     private ByteBuffer readByteBuffer  = ByteBuffer.allocate(1024 * 1024);
@@ -31,6 +36,8 @@ public class SocketProcessor implements Runnable {
     private IMessageProcessor messageProcessor = null;
     private WriteProxy        writeProxy       = null;
 
+    //为每个到来的客户端连接分配一个ID以作区分
+    //nextSocketId如果超出long范围了怎么办？
     private long              nextSocketId = 16 * 1024; //start incoming socket ids from 16K - reserve bottom ids for pre-defined sockets (servers).
 
     private Set<Socket> emptyToNonEmptySockets = new HashSet<>();
@@ -38,6 +45,7 @@ public class SocketProcessor implements Runnable {
 
 
     public SocketProcessor(Queue<Socket> inboundSocketQueue, MessageBuffer readMessageBuffer, MessageBuffer writeMessageBuffer, IMessageReaderFactory messageReaderFactory, IMessageProcessor messageProcessor) throws IOException {
+        //inboundSocketQueue中存储了客户端到来的连接
         this.inboundSocketQueue = inboundSocketQueue;
 
         this.readMessageBuffer    = readMessageBuffer;
@@ -84,12 +92,14 @@ public class SocketProcessor implements Runnable {
             newSocket.socketChannel.configureBlocking(false);
 
             newSocket.messageReader = this.messageReaderFactory.createMessageReader();
+            //所有客户端连接共用一个readMessageBuffer
             newSocket.messageReader.init(this.readMessageBuffer);
 
             newSocket.messageWriter = new MessageWriter();
 
             this.socketMap.put(newSocket.socketId, newSocket);
 
+            //将每个到来的新连接注册到readSelector中监测
             SelectionKey key = newSocket.socketChannel.register(this.readSelector, SelectionKey.OP_READ);
             key.attach(newSocket);
 
@@ -112,25 +122,36 @@ public class SocketProcessor implements Runnable {
 
                 keyIterator.remove();
             }
+            //在每次keyIterator.remove()条件下，有没有必要单独clear()？
             selectedKeys.clear();
         }
     }
 
     private void readFromSocket(SelectionKey key) throws IOException {
         Socket socket = (Socket) key.attachment();
+        //先读数据进行数据分割
         socket.messageReader.read(socket, this.readByteBuffer);
-
+        //获取读到的所有完整数据
         List<Message> fullMessages = socket.messageReader.getMessages();
-        if(fullMessages.size() > 0){
-            for(Message message : fullMessages){
+        if(fullMessages.size() > 0) {
+            for(Message message : fullMessages) {
                 message.socketId = socket.socketId;
-                this.messageProcessor.process(message, this.writeProxy);  //the message processor will eventually push outgoing messages into an IMessageWriter for this socket.
+                //the message processor will eventually push outgoing messages into an IMessageWriter for this socket.
+                this.messageProcessor.process(message, this.writeProxy);
+                //释放处理完的数据占用的空间
+                ((HttpMessageReader) socket.messageReader).messageBuffer.freeMessage(message);
             }
+
             fullMessages.clear();
         }
-
-        if(socket.endOfStreamReached){
+//        System.out.println("数据处理完：" + ((HttpMessageReader) socket.messageReader).messageBuffer.hashCode() +
+//                        " readpos: " + ((HttpMessageReader) socket.messageReader).messageBuffer.smallMessageBufferFreeBlocks.readPos
+//                        + " writepos: " + ((HttpMessageReader) socket.messageReader).messageBuffer.smallMessageBufferFreeBlocks.writePos
+//                        + " flipeed: " + ((HttpMessageReader) socket.messageReader).messageBuffer.smallMessageBufferFreeBlocks.flipped
+//        );
+        if(socket.endOfStreamReached) {
             System.out.println("Socket closed: " + socket.socketId);
+            System.out.println("----------------------------------");
             this.socketMap.remove(socket.socketId);
             key.attach(null);
             key.cancel();
@@ -199,7 +220,7 @@ public class SocketProcessor implements Runnable {
 
             if(socket != null){
                 MessageWriter messageWriter = socket.messageWriter;
-                if(messageWriter.isEmpty()){
+                if(messageWriter.isEmpty()) {
                     messageWriter.enqueue(outMessage);
                     nonEmptyToEmptySockets.remove(socket);
                     emptyToNonEmptySockets.add(socket);    //not necessary if removed from nonEmptyToEmptySockets in prev. statement.

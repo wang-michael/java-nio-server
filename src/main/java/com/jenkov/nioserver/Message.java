@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 
 /**
  * Created by jjenkov on 16-10-2015.
+ *
  */
 public class Message {
 
@@ -27,6 +28,7 @@ public class Message {
      *
      * @param byteBuffer The ByteBuffer containing the message data to write.
      * @return
+     * 把byteBuffer中存储的数据写到Message对象中
      */
     public int writeToMessage(ByteBuffer byteBuffer){
         int remaining = byteBuffer.remaining();

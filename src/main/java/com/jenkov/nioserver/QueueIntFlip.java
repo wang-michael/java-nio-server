@@ -11,6 +11,7 @@ package com.jenkov.nioserver;
  */
 public class QueueIntFlip {
 
+    //保存每一块空间在MessageBuffer中的起始地址
     public int[] elements = null;
 
     public int capacity = 0;
@@ -117,7 +118,7 @@ public class QueueIntFlip {
         }
     }
 
-
+    //返回值为分配的地址在sharedArray中起始地址
     public int take() {
         if(!flipped){
             if(readPos < writePos){

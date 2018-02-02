@@ -6,6 +6,8 @@ import java.util.List;
 
 /**
  * Created by jjenkov on 16-10-2015.
+ *
+ * MessageReader负责将读到的信息流分解为一个一个的Message
  */
 public interface IMessageReader {
 

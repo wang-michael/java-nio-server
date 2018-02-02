@@ -4,6 +4,7 @@ import java.util.Queue;
 
 /**
  * Created by jjenkov on 22-10-2015.
+ *
  */
 public class WriteProxy {
 

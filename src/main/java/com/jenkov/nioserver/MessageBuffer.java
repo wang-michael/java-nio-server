@@ -18,11 +18,13 @@ public class MessageBuffer {
     private static final int CAPACITY_LARGE  = 1024 * KB;
 
     //package scope (default) - so they can be accessed from unit tests.
-    byte[]  smallMessageBuffer  = new byte[1024 *   4 * KB];   //1024 x   4KB messages =  4MB.
+    byte[]  smallMessageBuffer  = new byte[256 *   4 * KB];   //1024 x   4KB messages =  4MB.
     byte[]  mediumMessageBuffer = new byte[128  * 128 * KB];   // 128 x 128KB messages = 16MB.
     byte[]  largeMessageBuffer  = new byte[16   *   1 * MB];   //  16 *   1MB messages = 16MB.
 
-    QueueIntFlip smallMessageBufferFreeBlocks  = new QueueIntFlip(1024); // 1024 free sections
+    //每个MessageBuffer对象含有1024个4KB的存储空间，128个128KB的存储空间，16个1MB的存储空间
+    //下面这三个变量分别用来记录smallMessageBuffer、mediumMessageBuffer、largeMessageBuffer的内存空间分配情况
+    public QueueIntFlip smallMessageBufferFreeBlocks  = new QueueIntFlip(256); // 1024 free sections
     QueueIntFlip mediumMessageBufferFreeBlocks = new QueueIntFlip(128);  // 128  free sections
     QueueIntFlip largeMessageBufferFreeBlocks  = new QueueIntFlip(16);   // 16   free sections
 
@@ -34,6 +36,7 @@ public class MessageBuffer {
         for(int i=0; i<smallMessageBuffer.length; i+= CAPACITY_SMALL){
             this.smallMessageBufferFreeBlocks.put(i);
         }
+//        System.out.println("writePos: " + this.smallMessageBufferFreeBlocks.writePos + " flipped: " + this.smallMessageBufferFreeBlocks.flipped);
         for(int i=0; i<mediumMessageBuffer.length; i+= CAPACITY_MEDIUM){
             this.mediumMessageBufferFreeBlocks.put(i);
         }
@@ -57,11 +60,26 @@ public class MessageBuffer {
         return message;
     }
 
+    public boolean freeMessage(Message message) {
+        boolean result = false;
+        System.out.println("message.capacity: " + message.capacity);
+        if (message.capacity == CAPACITY_SMALL) {
+            result = smallMessageBufferFreeBlocks.put(message.offset);
+        } else if (message.capacity == CAPACITY_MEDIUM) {
+            result = mediumMessageBufferFreeBlocks.put(message.offset);
+        } else if (message.capacity == CAPACITY_LARGE) {
+            result = largeMessageBufferFreeBlocks.put(message.offset);
+        }
+        return result;
+    }
+
     public boolean expandMessage(Message message){
         if(message.capacity == CAPACITY_SMALL){
-            return moveMessage(message, this.smallMessageBufferFreeBlocks, this.mediumMessageBufferFreeBlocks, this.mediumMessageBuffer, CAPACITY_MEDIUM);
+            return moveMessage(message, this.smallMessageBufferFreeBlocks, this.mediumMessageBufferFreeBlocks,
+                    this.mediumMessageBuffer, CAPACITY_MEDIUM);
         } else if(message.capacity == CAPACITY_MEDIUM){
-            return moveMessage(message, this.mediumMessageBufferFreeBlocks, this.largeMessageBufferFreeBlocks, this.largeMessageBuffer, CAPACITY_LARGE);
+            return moveMessage(message, this.mediumMessageBufferFreeBlocks, this.largeMessageBufferFreeBlocks,
+                    this.largeMessageBuffer, CAPACITY_LARGE);
         } else {
             return false;
         }
